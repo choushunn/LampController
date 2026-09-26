@@ -47,6 +47,7 @@ public:
     void ConnectAsync(const std::string& port_name, int baud_rate);
     void DisconnectAsync();
     void SetChannelAsync(int channel, int percent);
+    void SetChannelRawAsync(int channel, int raw);
     void SetChannelsAsync(const std::array<int, kChannelCount>& percents);
     void ApplyAsync();
     void QueryStatusAsync();
@@ -54,9 +55,12 @@ public:
     Result Connect(const std::string& port_name, int baud_rate);
     Result Disconnect();
     Result SetChannel(int channel, int percent);
+    Result SetChannelRaw(int channel, int raw);
     Result SetChannels(const std::array<int, kChannelCount>& percents);
     Result Apply();
     Result QueryStatus(DeviceStatus& status);
+    Result SendRaw(const std::string& command, int read_ms,
+                   std::string& response);
 
     void SetMode(int mode);
     void SetPwm(int pwm);
