@@ -12,6 +12,7 @@ endif()
 add_compile_options(-Wall -Wextra)
 
 set(LAMP_CORE_SOURCES
+  src/core/model.cpp
   src/core/protocol.cpp
   src/core/units.cpp
   src/transport/windows_serial.cpp
@@ -59,7 +60,6 @@ set_target_properties(LampSdkDemo PROPERTIES OUTPUT_NAME LampSdkDemo)
 enable_testing()
 add_executable(lamp_tests
   tests/test_main.cpp
-  tests/test_harness.h
   tests/protocol_test.cpp
   tests/units_test.cpp
   tests/port_list_test.cpp
