@@ -65,6 +65,7 @@ add_executable(lamp_tests
   tests/port_list_test.cpp
   tests/config_test.cpp
   tests/state_machine_test.cpp
+  tests/device_test.cpp
 )
 target_include_directories(lamp_tests PUBLIC include tests)
 target_link_libraries(lamp_tests PRIVATE lamp_core)

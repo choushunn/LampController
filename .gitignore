@@ -16,6 +16,7 @@ logs/
 # IDE
 .vscode/
 .idea/
+.trae/
 
 # CMake generated files inside build tree
 CMakeCache.txt
