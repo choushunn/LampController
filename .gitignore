@@ -1,0 +1,24 @@
+# Build output
+build/
+out/
+
+# Generated binaries
+*.exe
+*.dll
+*.lib
+*.a
+*.o
+*.obj
+
+# Logs
+logs/
+
+# IDE
+.vscode/
+.idea/
+
+# CMake generated files inside build tree
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+CTestTestfile.cmake
