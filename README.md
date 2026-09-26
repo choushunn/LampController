@@ -15,7 +15,7 @@
 
 二、产物说明
 
-build/智能灯光控制器.exe 为图形界面程序；build/lampctl.exe 为命令行程序；build/LampController.Sdk.dll 与 build/LampController.Sdk.lib 为 C SDK 动态库及其导入库，供其他 C/C++ 程序链接调用。build/LampSdkDemo.exe 为 SDK 使用示例。
+build/智能灯光控制器.exe 为图形界面程序；build/lampctl.exe 为命令行程序；build/LampController.Sdk.dll 与 build/libLampController.Sdk.dll.a 为 C SDK 动态库及其导入库，供其他 C/C++ 程序链接调用。build/LampSdkDemo.exe 为 SDK 使用示例。
 
 三、目录结构
 
@@ -35,7 +35,7 @@ include/lamp 存放公共头文件，按核心、传输、平台、服务、配�
 
 七、C SDK 简要说明
 
-C/C++ 程序包含 include/lamp/sdk/LampController.Sdk.h 并链接 LampController.Sdk.lib，然后调用 lamp_sdk_create、lamp_sdk_connect、lamp_sdk_set_brightness_percent、lamp_sdk_set_channel_brightness_percent、lamp_sdk_turn_on、lamp_sdk_turn_off、lamp_sdk_query_status、lamp_sdk_send_raw、lamp_sdk_destroy 等接口。完整接口、返回值和示例请查看头文件与 LampSdkDemo 源码。
+C/C++ 程序包含 include/lamp/sdk/lamp_sdk.h 并链接 LampController.Sdk 导入库，然后调用 lamp_sdk_create、lamp_sdk_connect、lamp_sdk_set_brightness_percent、lamp_sdk_set_brightness_percent_all、lamp_sdk_turn_on、lamp_sdk_turn_off、lamp_sdk_apply_settings、lamp_sdk_query_status、lamp_sdk_destroy 等接口。完整接口、返回值和示例请查看头文件与 LampSdkDemo 源码。
 
 八、注意事项
 

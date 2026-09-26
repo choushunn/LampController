@@ -1,0 +1,182 @@
+智能灯光控制器使用说明
+
+一、文件说明
+
+智能灯光控制器.exe
+  图形界面程序，适合日常开关灯、亮度调节和设备状态查看。
+
+lampctl.exe
+  命令行程序，适合批量操作、脚本调用和快速调试。
+
+LampController.Sdk.dll
+  原生 C SDK 动态库，供其他软件调用。
+
+LampController.Sdk.dll.a
+  SDK 导入库，C/C++ 程序链接 DLL 时使用。
+
+构建产物位于 build 目录，可通过 CMake 重新构建。当前版本支持 CH1 至 CH4 共四个通道。
+
+二、图形界面使用方法
+
+1. 使用串口线连接灯光控制设备。
+2. 双击“智能灯光控制器.exe”。
+3. 在“设备连接”中选择实际串口。
+4. 默认波特率为 19200，一般不需要修改。
+5. 点击“连接设备”。
+6. 连接后可以分别控制 CH1、CH2、CH3、CH4 四盏灯：
+   - 点击电源按钮打开或关闭对应灯。
+   - 拖动滑块调整亮度。
+   - 点击 10%、30%、50%、80%、100% 快速设置亮度。
+   - 点击“应用设置”重新下发当前参数。
+7. 右侧“通信记录”显示连接结果和操作结果。
+8. 设备卡片显示设备版本、温度、电压、电流和保护状态。
+9. 连接意外断开时会自动按 1/2/4 秒退避重连，按钮显示“正在重连...”。
+10. 端口、波特率、模式、PWM、各通道亮度等设置会自动保存，下次启动自动恢复。
+
+注意事项：
+
+1. 当前程序控制 CH1、CH2、CH3、CH4 四个通道。
+2. 同一个串口不能被两个程序同时打开。
+3. 如果连接失败，请关闭其他串口工具后重新连接。
+4. 如果端口不存在，请检查 USB 串口驱动和设备连接。
+
+三、lampctl 双击使用方法
+
+双击 lampctl.exe 后，程序会显示帮助信息并停留在窗口中，
+按回车键才会关闭，不会再像以前那样一闪而过。
+
+如果需要发送具体控制命令，请打开 PowerShell 或 CMD：
+
+1. 按 Win + R。
+2. 输入 powershell，按回车。
+3. 输入：
+
+   cd "d:\CPP\LampController"
+
+4. 然后运行下面的命令。
+
+四、查看串口
+
+  .\build\lampctl.exe ports
+
+输出示例：
+
+  COM3
+  COM9
+
+后续命令中的 COM9 要替换成实际端口。
+
+五、常用命令
+
+查看设备状态：
+
+  .\build\lampctl.exe status --port COM9
+
+切换到稳定数字调光、95K：
+
+  .\build\lampctl.exe stable --port COM9
+
+打开全部灯，亮度 60%：
+
+  .\build\lampctl.exe on --port COM9 --brightness 60
+
+只打开灯 1，亮度 60%：
+
+  .\build\lampctl.exe on --port COM9 --light 1 --brightness 60
+
+只打开灯 3，亮度 30%：
+
+  .\build\lampctl.exe on --port COM9 --light 3 --brightness 30
+
+关闭全部灯：
+
+  .\build\lampctl.exe off --port COM9
+
+设置 CH1 为 60%，CH2 为 30%，CH3 为 40%，CH4 为 50%：
+
+  .\build\lampctl.exe set --port COM9 --light1 60 --light2 30 --light3 40 --light4 50
+
+使用设备原始值 0-255 设置 CH1：
+
+  .\build\lampctl.exe brightness --port COM9 --light 1 --raw 153
+
+发送原始指令：
+
+  .\build\lampctl.exe raw --port COM9 --command "S_MOD:0#" --read-ms 300
+
+查看完整帮助：
+
+  .\build\lampctl.exe --help
+
+六、参数说明
+
+--port
+  指定串口，例如 COM3、COM9，缺省为自动选择。
+
+--baud
+  指定波特率，默认 19200。
+
+--light
+  指定灯，可填 1、2、3、4、all，或用逗号组合，例如 1,3。
+
+--brightness
+  按百分比设置亮度，范围为 0-100。
+
+--value
+  按百分比设置亮度，范围为 0-100。
+
+--raw
+  使用设备原始亮度值，范围为 0-255。
+
+--light1、--light2、--light3、--light4
+  分别设置 CH1 至 CH4 的百分比亮度，至少指定一个。
+
+--read-ms
+  发送原始指令后等待设备返回的时间，单位毫秒。
+
+七、设备协议
+
+SPA<数值>#      通道 1 输出/亮度
+SPB<数值>#      通道 2 输出/亮度
+SPC<数值>#      通道 3 输出/亮度
+SPD<数值>#      通道 4 输出/亮度
+S_CTRL:1#       允许通道输出
+S_MOD:0#        稳定数字调光
+S_MOD:1#        频闪模式
+S_PWMP:0#       47.5K
+S_PWMP:1#       95K
+S_ALL#          执行以上参数
+
+八、C SDK 简要说明
+
+C/C++ 程序可以包含 include\lamp\sdk\lamp_sdk.h，并链接
+LampController.Sdk 导入库，然后调用以下原生接口：
+
+  lamp_sdk_create
+  lamp_sdk_connect
+  lamp_sdk_set_brightness_percent
+  lamp_sdk_set_brightness_percent_all
+  lamp_sdk_turn_on
+  lamp_sdk_turn_off
+  lamp_sdk_query_status
+  lamp_sdk_apply_settings
+  lamp_sdk_destroy
+
+完整接口、返回值和示例请查看 include\lamp\sdk\lamp_sdk.h 与 src\demo\main.cpp。
+
+九、常见问题
+
+1. lampctl.exe 双击后一闪而过
+   当前版本已经修复，会停留在窗口并等待按回车。
+
+2. 提示 Could not open COM9
+   表示端口无法打开，请确认端口名称正确，并且没有被图形程序占用。
+
+3. 提示未找到唯一串口
+   请先运行 lampctl ports，然后使用 --port 明确指定端口。
+
+4. 灯没有反应
+   请检查设备供电、串口线、驱动、波特率和端口占用情况。
+
+5. 程序关闭后串口仍被占用
+   关闭所有正在使用该串口的程序，然后拔插 USB 串口设备。
