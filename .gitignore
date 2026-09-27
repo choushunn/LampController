@@ -4,6 +4,7 @@ out/
 
 # Generated binaries
 *.exe
+!docs/3687908310powerctrl_V1.01.exe
 *.dll
 *.lib
 *.a
