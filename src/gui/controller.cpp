@@ -171,11 +171,13 @@ LRESULT Controller::HandleMessage(UINT message, WPARAM w_param,
 
     case WM_TIMER: {
         // 滑块拖动节流：每 80ms 发送一次当前亮度，松手时由 View 立即发送。
+        // 拖动期间不持久化配置（persist=false），松手一次写盘即可。
         int index = static_cast<int>(w_param) -
                     static_cast<int>(kTimerSliderBase);
         if (index >= 0 && index < kChannelCount) {
             OnSetChannel(
-                index, model_.channels[static_cast<size_t>(index)].percent);
+                index, model_.channels[static_cast<size_t>(index)].percent,
+                false);
         }
         break;
     }
@@ -237,7 +239,7 @@ void Controller::OnConnect() {
     device_->ConnectAsync(port, baud);
 }
 
-void Controller::OnSetChannel(int channel_index, int percent) {
+void Controller::OnSetChannel(int channel_index, int percent, bool persist) {
     if (channel_index < 0 || channel_index >= kChannelCount) {
         return;
     }
@@ -249,7 +251,9 @@ void Controller::OnSetChannel(int channel_index, int percent) {
     }
     int raw = PercentToRaw(percent);
     model_.SetChannel(channel_index, percent > 0, percent, raw);
-    SaveConfig();
+    if (persist) {
+        SaveConfig();
+    }
     if (!model_.connected) {
         return;
     }

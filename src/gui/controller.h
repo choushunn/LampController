@@ -39,7 +39,8 @@ public:
     // 以下方法全部由 View 在 UI 线程调用。
     void OnPortRefresh();
     void OnConnect();
-    void OnSetChannel(int channel_index, int percent);
+    // persist=false 用于滑块拖动节流（WM_TIMER），避免每 80ms 写一次配置。
+    void OnSetChannel(int channel_index, int percent, bool persist = true);
     void OnToggleChannel(int channel_index);
     void OnApply();
     void OnQueryStatus();

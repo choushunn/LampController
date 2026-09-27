@@ -82,6 +82,12 @@ AppConfigData LoadAppConfig(const std::string& path) {
 }
 
 void SaveAppConfig(const std::string& path, const AppConfigData& config) {
+    // 确保父目录存在（首次运行 %APPDATA%\LampController 尚不存在，
+    // 否则 ofstream 打开失败将静默丢弃全部设置）。
+    size_t separator = path.find_last_of("\\/");
+    if (separator != std::string::npos && separator > 0) {
+        CreateDirectoryA(path.substr(0, separator).c_str(), NULL);
+    }
     std::ofstream file(path, std::ios::trunc);
     if (!file.is_open()) {
         return;

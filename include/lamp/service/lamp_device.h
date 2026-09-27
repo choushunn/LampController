@@ -15,6 +15,10 @@ class Logger;
 
 // Observer slots invoked from the device worker thread. Consumers that touch
 // UI state must marshal to their own thread (for example via PostMessage).
+// The callbacks run inline on the worker thread, so they must never call the
+// blocking (sync) LampDevice methods (Connect/SetChannel/QueryStatus/...):
+// those wait for the worker to process the queue and would deadlock it.
+// Only the *Async methods may be used from a callback.
 struct DeviceNotifier {
     std::function<void(ConnectionState)> on_state;
     std::function<void(bool)> on_connected;

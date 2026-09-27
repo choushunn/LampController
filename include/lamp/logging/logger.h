@@ -7,9 +7,11 @@ namespace lamp {
 
 enum class LogLevel { Debug = 0, Info = 1, Warn = 2, Error = 3 };
 
-// Central logging facility. Thread-safe: a process-wide mutex serializes every
-// write so output from multiple devices never interleaves. The file sink is
-// disabled by default; when enabled, messages append to
+// Central logging facility. Log output is serialized by a process-wide mutex
+// so lines from multiple devices/threads never interleave. The configuration
+// methods (SetLevel/SetFileSink/AddSink) are intended to be called before
+// logging starts; do not reconfigure a logger concurrently with logging.
+// The file sink is disabled by default; when enabled, messages append to
 // lampctl-YYYYMMDD.log inside the configured directory and files larger than
 // 1 MB are rotated to <name>.old on the next write.
 class Logger {

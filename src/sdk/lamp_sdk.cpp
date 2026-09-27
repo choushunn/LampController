@@ -201,6 +201,7 @@ LAMP_SDK_API int lamp_sdk_is_connected(const lamp_sdk_t *sdk) {
 
 LAMP_SDK_API const char *lamp_sdk_get_last_error(const lamp_sdk_t *sdk) {
     if (sdk != nullptr) {
+        std::lock_guard<std::mutex> lock(sdk->mtx);
         return sdk->last_error.c_str();
     }
     std::lock_guard<std::mutex> lock(g_global_mutex);

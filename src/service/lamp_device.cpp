@@ -240,8 +240,13 @@ Result LampDevice::Impl::DoSetChannel(int channel, int percent) {
     }
 
     int raw = PercentToRaw(percent);
+    bool restore_stable = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        restore_stable = restore_stable_mode;
+    }
     Result result = ExecuteSequence(
-        protocol::SetChannelRawSequence(channel, raw, restore_stable_mode));
+        protocol::SetChannelRawSequence(channel, raw, restore_stable));
     if (result != Result::Ok) {
         HandleFailure(last_error);
         return result;
@@ -277,8 +282,13 @@ Result LampDevice::Impl::DoSetChannelRaw(int channel, int raw) {
         return Result::NotConnected;
     }
 
+    bool restore_stable = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        restore_stable = restore_stable_mode;
+    }
     Result result = ExecuteSequence(
-        protocol::SetChannelRawSequence(channel, raw, restore_stable_mode));
+        protocol::SetChannelRawSequence(channel, raw, restore_stable));
     if (result != Result::Ok) {
         HandleFailure(last_error);
         return result;
@@ -315,8 +325,13 @@ Result LampDevice::Impl::DoSetChannels(const std::array<int, kChannelCount>& per
     for (int percent : percents) {
         raws.push_back(PercentToRaw(percent));
     }
+    bool restore_stable = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        restore_stable = restore_stable_mode;
+    }
     Result result =
-        ExecuteSequence(protocol::SetChannelsRawSequence(raws, restore_stable_mode));
+        ExecuteSequence(protocol::SetChannelsRawSequence(raws, restore_stable));
     if (result != Result::Ok) {
         HandleFailure(last_error);
         return result;
@@ -344,9 +359,19 @@ Result LampDevice::Impl::DoApply() {
         return Result::NotConnected;
     }
 
+    int apply_mode = 0;
+    int apply_pwm = 1;
+    bool restore_stable = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        apply_mode = mode;
+        apply_pwm = pwm;
+        restore_stable = restore_stable_mode;
+    }
+
     std::vector<protocol::Command> sequence;
-    sequence.push_back({protocol::CommandType::SetMode, 0, mode, "", 220});
-    sequence.push_back({protocol::CommandType::SetPwmFrequency, 0, pwm, "", 220});
+    sequence.push_back({protocol::CommandType::SetMode, 0, apply_mode, "", 220});
+    sequence.push_back({protocol::CommandType::SetPwmFrequency, 0, apply_pwm, "", 220});
     for (int index = 0; index < kChannelCount; index++) {
         int raw = 0;
         {
@@ -358,7 +383,7 @@ Result LampDevice::Impl::DoApply() {
         sequence.push_back({protocol::CommandType::SetChannel, index + 1, raw, "", 220});
     }
     sequence.push_back({protocol::CommandType::EnableOutput, 0, 1, "", 220});
-    auto apply = protocol::ApplySequence(restore_stable_mode && mode == 0);
+    auto apply = protocol::ApplySequence(restore_stable && apply_mode == 0);
     sequence.insert(sequence.end(), apply.begin(), apply.end());
 
     Result result = ExecuteSequence(sequence);
@@ -483,8 +508,13 @@ void LampDevice::Impl::HandleFailure(const std::string& message) {
     }
     LogMessage("错误：" + message);
     ConnectionState current = state_machine.Current();
+    bool reconnect_enabled = false;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        reconnect_enabled = auto_reconnect;
+    }
     if (current == ConnectionState::Connected) {
-        if (auto_reconnect) {
+        if (reconnect_enabled) {
             state_machine.TryReconnect();
             NotifyState(ConnectionState::Reconnecting);
             NotifyConnected(false);
