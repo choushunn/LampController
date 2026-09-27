@@ -11,12 +11,23 @@ endif()
 
 add_compile_options(-Wall -Wextra)
 
+# 单元测试仅在 BUILD_TESTING=ON 时构建；mock 串口实现只服务于测试，
+# 独立成 lamp_test_utils 库，不进入正式库 lamp_core。
+option(BUILD_TESTING "Build and run unit tests" ON)
+
+# 可选的 sanitizer 构建（-fsanitize=address,undefined），默认关闭；
+# 仅推荐用于调试定位内存与时序问题，Release 打包请保持关闭。
+option(LAMP_ENABLE_SANITIZERS "Enable AddressSanitizer and UndefinedBehaviorSanitizer" OFF)
+if(LAMP_ENABLE_SANITIZERS)
+  add_compile_options(-fsanitize=address,undefined -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address,undefined)
+endif()
+
 set(LAMP_CORE_SOURCES
   src/core/model.cpp
   src/core/protocol.cpp
   src/core/units.cpp
   src/transport/windows_serial.cpp
-  src/transport/mock_serial.cpp
   src/platform/windows_port_discovery.cpp
   src/service/connection_state.cpp
   src/service/lamp_device.cpp
@@ -60,19 +71,35 @@ target_include_directories(LampSdkDemo PUBLIC include)
 target_link_libraries(LampSdkDemo PRIVATE LampController.Sdk)
 set_target_properties(LampSdkDemo PROPERTIES OUTPUT_NAME LampSdkDemo)
 
-enable_testing()
-add_executable(lamp_tests
-  tests/test_main.cpp
-  tests/protocol_test.cpp
-  tests/units_test.cpp
-  tests/port_list_test.cpp
-  tests/config_test.cpp
-  tests/state_machine_test.cpp
-  tests/device_test.cpp
-)
-target_include_directories(lamp_tests PUBLIC include tests)
-target_link_libraries(lamp_tests PRIVATE lamp_core)
-add_test(NAME lamp_tests COMMAND lamp_tests)
+if(BUILD_TESTING)
+  enable_testing()
+
+  # mock 串口仅测试使用，独立成库，避免正式 lamp_core 混入测试代码。
+  add_library(lamp_test_utils STATIC src/transport/mock_serial.cpp)
+  target_include_directories(lamp_test_utils PUBLIC include)
+
+  add_executable(lamp_tests
+    tests/test_main.cpp
+    tests/protocol_test.cpp
+    tests/units_test.cpp
+    tests/port_list_test.cpp
+    tests/config_test.cpp
+    tests/state_machine_test.cpp
+    tests/device_test.cpp
+  )
+  target_include_directories(lamp_tests PUBLIC include tests)
+  target_link_libraries(lamp_tests PRIVATE lamp_core lamp_test_utils)
+  add_test(NAME lamp_tests COMMAND lamp_tests)
+
+  # SDK C ABI 中不依赖真实设备的部分（转换、建帧、句柄生命周期等）做自动化测试。
+  add_executable(lamp_sdk_tests
+    tests/test_main.cpp
+    tests/sdk_test.cpp
+  )
+  target_include_directories(lamp_sdk_tests PUBLIC include tests)
+  target_link_libraries(lamp_sdk_tests PRIVATE LampController.Sdk)
+  add_test(NAME lamp_sdk_tests COMMAND lamp_sdk_tests)
+endif()
 
 # 将 MinGW 运行时 DLL 复制到构建目录，供 NSIS 安装包随附分发，
 # 保证目标机器无需安装 MSYS2 即可运行所有程序。
