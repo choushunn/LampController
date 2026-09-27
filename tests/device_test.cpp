@@ -186,6 +186,34 @@ TEST(device_auto_reconnect) {
     EXPECT_TRUE(harness.device->IsConnected());
 }
 
+// 回归：重连期间端口能打开但设备初始化序列失败时，重试必须继续按指数退避
+// 调度；否则会形成无退避、无重试次数增长的紧循环，反复击打串口。
+TEST(device_reconnect_init_failure_backoff) {
+    DeviceHarness harness;
+    EXPECT_EQ(harness.device->Connect("COM9", 19200), Result::Ok);
+
+    // 之后所有交换都失败：触发重连后，重连尝试能打开端口但初始化序列恒失败。
+    harness.transport->fail_exchange_count = 100000;
+    harness.transport->open_count = 0;  // 忽略初始成功连接的那次 Open
+    EXPECT_EQ(harness.device->SetChannel(1, 50), Result::SerialError);
+    EXPECT_EQ(harness.device->State(), ConnectionState::Reconnecting);
+
+    // 首次退避为 2 秒；若存在紧循环缺陷，此窗口内会反复重开端口。
+    std::this_thread::sleep_for(std::chrono::milliseconds(600));
+    EXPECT_EQ(harness.transport->open_count, 0);
+
+    // 等待至少一次重连尝试（2 秒退避后），随后窗口内不应出现新的重开。
+    auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(4);
+    while (harness.transport->open_count == 0 &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+    int after_first_retry = harness.transport->open_count;
+    std::this_thread::sleep_for(std::chrono::milliseconds(600));
+    // 缺陷版本会在 600ms 内连续重开端口，数量远超退避版本的计数。
+    EXPECT_LE(harness.transport->open_count, after_first_retry + 1);
+}
+
 TEST(device_disconnect) {
     DeviceHarness harness;
     harness.device->Connect("COM9", 19200);

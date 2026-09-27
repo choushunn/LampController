@@ -16,6 +16,7 @@ bool MockSerialTransport::Open(const std::string& port_name, int baud_rate) {
     baud_rate_ = baud_rate;
     is_open_ = true;
     last_error_.clear();
+    open_count++;
     return true;
 }
 

@@ -53,3 +53,14 @@ inline int g_failures = 0;
                         #expected);                                            \
         }                                                                      \
     } while (0)
+
+#define EXPECT_LE(actual, expected)                                            \
+    do {                                                                       \
+        auto a_value = (actual);                                               \
+        auto e_value = (expected);                                             \
+        if (!(a_value <= e_value)) {                                           \
+            ::test::g_failures++;                                              \
+            std::printf("FAIL %s:%d: %s <= %s\n", __FILE__, __LINE__, #actual, \
+                        #expected);                                            \
+        }                                                                      \
+    } while (0)

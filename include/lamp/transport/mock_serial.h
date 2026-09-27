@@ -18,6 +18,7 @@ public:
     std::vector<std::pair<std::string, std::string>> script;
     std::vector<std::string> exchanged;
     int fail_exchange_count = 0;
+    int open_count = 0;  // Open() 成功调用次数，供重连退避等测试断言。
 
     bool Open(const std::string& port_name, int baud_rate) override;
     void Close() override;
