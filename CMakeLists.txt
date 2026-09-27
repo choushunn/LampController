@@ -58,8 +58,9 @@ add_executable(lamp_gui
   src/gui/app.cpp
   src/gui/controller.cpp
   src/gui/view.cpp
+  resources/app.rc
 )
-target_include_directories(lamp_gui PUBLIC include src/gui)
+target_include_directories(lamp_gui PUBLIC include src/gui PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(lamp_gui PRIVATE lamp_core user32 gdi32)
 set_target_properties(lamp_gui PROPERTIES
   WIN32_EXECUTABLE TRUE

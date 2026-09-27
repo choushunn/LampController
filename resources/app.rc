@@ -1,0 +1,6 @@
+// LampController 应用资源定义。
+// 由 CMake 通过 windres 编译，随 lamp_gui.exe 一起链接。
+#include "resources/resource.h"
+
+// 应用图标：作为可执行文件、窗口标题栏与任务栏的软件标识。
+IDI_APP ICON "resources/app.ico"

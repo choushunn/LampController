@@ -5,6 +5,7 @@
 #include "view.h"
 
 #include "lamp/config/app_config.h"
+#include "resources/resource.h"
 
 namespace lamp {
 namespace gui {
@@ -58,8 +59,9 @@ void App::RegisterWindowClass(HINSTANCE instance) {
     window_class.hbrBackground =
         static_cast<HBRUSH>(GetStockObject(NULL_BRUSH));
     window_class.lpszClassName = kWindowClass;
-    window_class.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
-    window_class.hIconSm = LoadIcon(nullptr, IDI_APPLICATION);
+    // 使用内嵌的应用图标作为窗口与任务栏标识。
+    window_class.hIcon = LoadIconW(instance, MAKEINTRESOURCEW(IDI_APP));
+    window_class.hIconSm = LoadIconW(instance, MAKEINTRESOURCEW(IDI_APP));
     RegisterClassExW(&window_class);
 }
 

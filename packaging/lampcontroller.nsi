@@ -7,6 +7,10 @@ Unicode true
 XPStyle on
 RequestExecutionLevel admin
 
+; 安装包与卸载程序使用与应用相同的图标
+Icon "${SRC_DIR}\resources\app.ico"
+UninstallIcon "${SRC_DIR}\resources\app.ico"
+
 !include "MUI2.nsh"
 
 Name "智能灯光控制器"
