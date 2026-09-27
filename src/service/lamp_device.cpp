@@ -531,6 +531,14 @@ void LampDevice::Impl::HandleFailure(const std::string& message) {
         state_machine.TryFailed();
         NotifyState(ConnectionState::Failed);
         NotifyConnected(false);
+        return;
+    }
+    // 重连期间（端口已打开但初始化序列失败等）也要延续指数退避；
+    // 否则 reconnect_pending 保持为真且 retry_at 已过期，Run 循环会立即
+    // 重试，形成无退避、无重试次数增长的紧循环。
+    if (current == ConnectionState::Reconnecting) {
+        NotifyConnected(false);
+        ScheduleReconnect();
     }
 }
 

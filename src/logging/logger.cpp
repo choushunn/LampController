@@ -2,6 +2,7 @@
 
 #include <cstdarg>
 #include <cstdio>
+#include <memory>
 #include <mutex>
 #include <string>
 #include <utility>
@@ -87,49 +88,61 @@ void AppendToFile(const std::string& directory, const std::string& line) {
 }  // namespace
 
 struct Logger::Impl {
+    std::mutex mtx;  // 保护本实例全部成员；与 g_write_mutex 无嵌套顺序。
     LogLevel level = LogLevel::Info;
     std::vector<std::function<void(const std::string&)>> sinks;
     bool file_enabled = false;
     std::string directory;
 };
 
-Logger::Logger(LogLevel level) : impl_(new Impl) {
+Logger::Logger(LogLevel level) : impl_(std::make_unique<Impl>()) {
     impl_->level = level;
 }
 
-Logger::~Logger() {
-    delete impl_;
-}
+Logger::~Logger() = default;
 
 void Logger::SetLevel(LogLevel level) {
+    std::lock_guard<std::mutex> lock(impl_->mtx);
     impl_->level = level;
 }
 
 LogLevel Logger::Level() const {
+    std::lock_guard<std::mutex> lock(impl_->mtx);
     return impl_->level;
 }
 
 void Logger::SetFileSink(bool enabled, const std::string& directory) {
+    std::lock_guard<std::mutex> lock(impl_->mtx);
     impl_->file_enabled = enabled;
     impl_->directory = directory;
 }
 
 void Logger::AddSink(std::function<void(const std::string&)> sink) {
+    std::lock_guard<std::mutex> lock(impl_->mtx);
     impl_->sinks.push_back(std::move(sink));
 }
 
 void Logger::LogImpl(LogLevel level, const std::string& message) {
-    if (level < impl_->level) {
-        return;
+    std::string line;
+    bool file_enabled = false;
+    std::string directory;
+    std::vector<std::function<void(const std::string&)>> sinks;
+    {
+        std::lock_guard<std::mutex> lock(impl_->mtx);
+        if (level < impl_->level) {
+            return;
+        }
+        line = CurrentTimestamp() + " [" + LevelName(level) + "] " + message;
+        file_enabled = impl_->file_enabled;
+        directory = impl_->directory;
+        sinks = impl_->sinks;
     }
-    std::string line = CurrentTimestamp() + " [" + LevelName(level) + "] " +
-                       message;
     std::lock_guard<std::mutex> lock(g_write_mutex);
-    for (const auto& sink : impl_->sinks) {
+    for (const auto& sink : sinks) {
         sink(line);
     }
-    if (impl_->file_enabled) {
-        AppendToFile(impl_->directory, line);
+    if (file_enabled) {
+        AppendToFile(directory, line);
     }
 }
 

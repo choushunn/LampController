@@ -1,16 +1,17 @@
 #pragma once
 
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace lamp {
 
 enum class LogLevel { Debug = 0, Info = 1, Warn = 2, Error = 3 };
 
-// Central logging facility. Log output is serialized by a process-wide mutex
-// so lines from multiple devices/threads never interleave. The configuration
-// methods (SetLevel/SetFileSink/AddSink) are intended to be called before
-// logging starts; do not reconfigure a logger concurrently with logging.
+// Central logging facility. Line output is serialized by a process-wide mutex
+// so lines from multiple devices/threads never interleave; configuration
+// methods (SetLevel/SetFileSink/AddSink) are thread-safe and may be called
+// concurrently with logging.
 // The file sink is disabled by default; when enabled, messages append to
 // lampctl-YYYYMMDD.log inside the configured directory and files larger than
 // 1 MB are rotated to <name>.old on the next write.
@@ -37,7 +38,7 @@ public:
 
 private:
     struct Impl;
-    Impl* impl_;
+    std::unique_ptr<Impl> impl_;
     void LogImpl(LogLevel level, const std::string& message);
 };
 

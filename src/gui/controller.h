@@ -84,6 +84,12 @@ private:
     std::deque<DeviceStatus> pending_statuses_;
     std::deque<std::string> pending_logs_;
 
+    // 滑块拖动节流在途标记：定时器路径（persist=false）发现已有指令在途
+    // 时跳过本次发送，收到设备回传的 kMsgChannel 后清除。把拖动期间的在途
+    // 指令合并为至多一条，避免串口指令积压与中间亮度闪烁；松手路径
+    // （persist=true）不受此标记限制，始终发送最终值。
+    bool slider_send_pending_ = false;
+
     // 最后声明：析构时最先销毁（先 join 工作线程，保证回调不再访问本对象）。
     std::unique_ptr<lamp::LampDevice> device_;
 };

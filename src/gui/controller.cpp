@@ -103,6 +103,8 @@ LRESULT Controller::HandleMessage(UINT message, WPARAM w_param,
     case kMsgConnected: {
         bool connected = w_param != 0;
         model_.connected = connected;
+        // 断连/重连后旧的在途滑块指令通知不会再到达，清除标记避免卡死。
+        slider_send_pending_ = false;
         if (connected) {
             // 连接成功后把实际使用的端口写回配置并持久化。
             config_.port_name = device_->PortName();
@@ -137,6 +139,8 @@ LRESULT Controller::HandleMessage(UINT message, WPARAM w_param,
         if (pending.channel >= 1 && pending.channel <= kChannelCount) {
             model_.SetChannel(pending.channel - 1, pending.on, pending.percent,
                               pending.raw);
+            // 设备已应用该通道指令，允许下一个滑块定时发送。
+            slider_send_pending_ = false;
         }
         break;
     }
@@ -256,6 +260,14 @@ void Controller::OnSetChannel(int channel_index, int percent, bool persist) {
     }
     if (!model_.connected) {
         return;
+    }
+    // 定时器路径：已有同一次拖动发出的指令在途时跳过，避免中间值连续入队
+    // 造成串口积压与亮度闪烁；松手路径（persist=true）始终发送最终值。
+    if (!persist) {
+        if (slider_send_pending_) {
+            return;
+        }
+        slider_send_pending_ = true;
     }
     device_->SetChannelAsync(channel_index + 1, percent);
 }
