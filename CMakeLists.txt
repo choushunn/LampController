@@ -74,6 +74,22 @@ target_include_directories(lamp_tests PUBLIC include tests)
 target_link_libraries(lamp_tests PRIVATE lamp_core)
 add_test(NAME lamp_tests COMMAND lamp_tests)
 
+# 将 MinGW 运行时 DLL 复制到构建目录，供 NSIS 安装包随附分发，
+# 保证目标机器无需安装 MSYS2 即可运行所有程序。
+set(MINGW_RUNTIME_DLLS libgcc_s_seh-1.dll libstdc++-6.dll libwinpthread-1.dll)
+get_filename_component(MINGW_BIN_DIR "${CMAKE_CXX_COMPILER}" DIRECTORY)
+set(COPY_RUNTIME_DLLS "")
+foreach(dll IN LISTS MINGW_RUNTIME_DLLS)
+  list(APPEND COPY_RUNTIME_DLLS COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+       "${MINGW_BIN_DIR}/${dll}" "${CMAKE_BINARY_DIR}/${dll}")
+endforeach()
+add_custom_target(copy_runtime_dlls ALL
+  COMMAND ${COPY_RUNTIME_DLLS}
+  COMMENT "Copying MinGW runtime DLLs for packaging"
+  VERBATIM
+)
+add_dependencies(copy_runtime_dlls lamp_gui lampctl LampSdkDemo LampController.Sdk)
+
 # NSIS installer packaging. Run `cmake --build build --target package_nsis`
 # after a full build; requires NSIS (makensis) to be installed.
 find_program(NSIS_EXECUTABLE makensis
@@ -84,7 +100,7 @@ if(NSIS_EXECUTABLE)
     COMMAND "${NSIS_EXECUTABLE}" /V4
       "/DBUILD_DIR=${CMAKE_BINARY_DIR}" "/DSRC_DIR=${CMAKE_SOURCE_DIR}"
       "${CMAKE_SOURCE_DIR}/packaging/lampcontroller.nsi"
-    DEPENDS lamp_gui lampctl LampSdkDemo LampController.Sdk
+    DEPENDS lamp_gui lampctl LampSdkDemo LampController.Sdk copy_runtime_dlls
     COMMENT "Building NSIS installer LampControllerSetup-1.0.0.exe"
     VERBATIM
   )

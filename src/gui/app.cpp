@@ -76,9 +76,6 @@ void App::OnCreate(HWND hwnd) {
     controller_->OnPortRefresh();
     controller_->AppendUILog(
         "程序已启动。连接设备后将自动切换到稳定数字调光 / 95K。");
-
-    SetWindowLongPtrW(hwnd, GWLP_USERDATA,
-                      reinterpret_cast<LONG_PTR>(view_.get()));
 }
 
 void App::OnDestroy() {
