@@ -11,11 +11,11 @@
   cmake -S . -B build -G "MinGW Makefiles"
   cmake --build build -j
 
-编译产物位于 build 目录下。运行单元测试执行 ctest --test-dir build。若需要生成 Debug 版本，在配置时附加 -DCMAKE_BUILD_TYPE=Debug。
+编译产物位于 build 目录下。运行单元测试执行 ctest --test-dir build。若需要生成 Debug 版本，在配置时附加 -DCMAKE_BUILD_TYPE=Debug。制作 Windows 安装包执行 cmake --build build --target package_nsis，生成 build\LampControllerSetup-1.0.0.exe，该目标需要先安装 NSIS 3（默认安装路径 C:\Program Files (x86)\NSIS）。
 
 二、产物说明
 
-build/智能灯光控制器.exe 为图形界面程序；build/lampctl.exe 为命令行程序；build/LampController.Sdk.dll 与 build/libLampController.Sdk.dll.a 为 C SDK 动态库及其导入库，供其他 C/C++ 程序链接调用。build/LampSdkDemo.exe 为 SDK 使用示例。
+build\lamp_gui.exe 为图形界面程序（源码内命名为智能灯光控制器，安装包安装后即以此名安装）；build\lampctl.exe 为命令行程序；build\LampController.Sdk.dll 与 build\libLampController.Sdk.dll.a 为 C SDK 动态库及其导入库，供其他 C/C++ 程序链接调用。build\LampSdkDemo.exe 为 SDK 使用示例。build\LampControllerSetup-1.0.0.exe 为 NSIS 安装包。
 
 三、目录结构
 
@@ -23,7 +23,7 @@ include/lamp 存放公共头文件，按核心、传输、平台、服务、配�
 
 四、图形界面使用
 
-使用串口线连接灯光控制设备后，双击智能灯光控制器.exe。在设备连接区域选择实际串口，默认波特率 19200 一般不需要修改，点击连接设备。连接后可以分别控制四个通道，点击电源按钮打开或关闭对应灯，拖动滑块调整亮度，点击快速设置按钮设定常用亮度，点击应用设置重新下发当前参数。右侧通信记录显示连接和操作结果，底部状态栏显示设备版本、温度、电压、电流和保护状态。程序会自动保存端口、波特率、调光参数和通道亮度，下次启动自动恢复；串口断开或设备拔插后会自动重连。
+使用串口线连接灯光控制设备后，双击 build\lamp_gui.exe（或运行安装包安装后点击桌面快捷方式）。在设备连接区域选择实际串口，默认波特率 19200 一般不需要修改，点击连接设备。连接后可以分别控制四个通道，点击电源按钮打开或关闭对应灯，拖动滑块调整亮度，点击快速设置按钮设定常用亮度，点击应用设置重新下发当前参数。右侧通信记录显示连接和操作结果，底部状态栏显示设备版本、温度、电压、电流和保护状态。程序会自动保存端口、波特率、调光参数和通道亮度，下次启动自动恢复；串口断开或设备拔插后会自动重连。
 
 五、lampctl 命令行使用
 

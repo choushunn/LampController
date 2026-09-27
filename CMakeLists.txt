@@ -39,6 +39,9 @@ target_include_directories(lampctl PUBLIC include)
 target_link_libraries(lampctl PRIVATE lamp_core)
 set_target_properties(lampctl PROPERTIES OUTPUT_NAME lampctl)
 
+# 构建产物统一使用 ASCII 文件名。mingw32-make 无法可靠处理中文文件名，
+# 因此图形界面程序构建为 lamp_gui.exe，安装包制作时再由 NSIS 改名为
+# 智能灯光控制器.exe 安装。
 add_executable(lamp_gui
   src/gui/main.cpp
   src/gui/app.cpp
@@ -49,7 +52,7 @@ target_include_directories(lamp_gui PUBLIC include src/gui)
 target_link_libraries(lamp_gui PRIVATE lamp_core user32 gdi32)
 set_target_properties(lamp_gui PROPERTIES
   WIN32_EXECUTABLE TRUE
-  OUTPUT_NAME "智能灯光控制器"
+  OUTPUT_NAME lamp_gui
 )
 
 add_executable(LampSdkDemo src/demo/main.cpp)
@@ -70,3 +73,19 @@ add_executable(lamp_tests
 target_include_directories(lamp_tests PUBLIC include tests)
 target_link_libraries(lamp_tests PRIVATE lamp_core)
 add_test(NAME lamp_tests COMMAND lamp_tests)
+
+# NSIS installer packaging. Run `cmake --build build --target package_nsis`
+# after a full build; requires NSIS (makensis) to be installed.
+find_program(NSIS_EXECUTABLE makensis
+  PATHS "C:/Program Files (x86)/NSIS"
+)
+if(NSIS_EXECUTABLE)
+  add_custom_target(package_nsis
+    COMMAND "${NSIS_EXECUTABLE}" /V4
+      "/DBUILD_DIR=${CMAKE_BINARY_DIR}" "/DSRC_DIR=${CMAKE_SOURCE_DIR}"
+      "${CMAKE_SOURCE_DIR}/packaging/lampcontroller.nsi"
+    DEPENDS lamp_gui lampctl LampSdkDemo LampController.Sdk
+    COMMENT "Building NSIS installer LampControllerSetup-1.0.0.exe"
+    VERBATIM
+  )
+endif()
