@@ -70,6 +70,7 @@ struct LampDevice::Impl {
     Result DoDisconnect();
     Result DoSetChannel(int channel, int percent);
     Result DoSetChannelRaw(int channel, int raw);
+    Result DoSetChannelValue(int channel, int percent, int raw, bool raw_mode);
     Result DoSetChannels(const std::array<int, kChannelCount>& percents);
     Result DoApply();
     Result DoQueryStatus(DeviceStatus& status, bool fatal);
@@ -77,6 +78,8 @@ struct LampDevice::Impl {
                      std::string& response);
     Result ExecuteSequence(const std::vector<protocol::Command>& seq);
 
+    void SetError(const std::string& message);
+    void ReportLastError();
     void HandleFailure(const std::string& message);
     void ScheduleReconnect();
 
@@ -150,11 +153,7 @@ Result LampDevice::Impl::DoConnect(const std::string& port, int baud) {
     if (resolved.empty() || resolved == "auto") {
         auto found = discovery->FindPreferredPort();
         if (!found) {
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                last_error = "未找到唯一串口，请指定端口。";
-            }
-            HandleFailure(last_error);
+            HandleFailure("未找到唯一串口，请指定端口。");
             return Result::Error;
         }
         resolved = *found;
@@ -162,11 +161,9 @@ Result LampDevice::Impl::DoConnect(const std::string& port, int baud) {
 
     transport->Close();
     if (!transport->Open(resolved, resolved_baud)) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = transport->LastError();
-        }
-        LogMessage(last_error);
+        std::string open_error = transport->LastError();
+        SetError(open_error);
+        LogMessage(open_error);
         if (reconnecting) {
             ScheduleReconnect();
             return Result::SerialError;
@@ -188,7 +185,7 @@ Result LampDevice::Impl::DoConnect(const std::string& port, int baud) {
 
     Result result = ExecuteSequence(protocol::InitializeDeviceSequence());
     if (result != Result::Ok) {
-        HandleFailure(last_error);
+        ReportLastError();
         return result;
     }
 
@@ -220,65 +217,26 @@ Result LampDevice::Impl::DoDisconnect() {
 }
 
 Result LampDevice::Impl::DoSetChannel(int channel, int percent) {
-    if (!IsValidChannel(channel)) {
-        std::lock_guard<std::mutex> lock(mtx);
-        last_error = "通道号必须是 1-4。";
-        return Result::InvalidArgument;
-    }
-    if (!IsValidPercent(percent)) {
-        std::lock_guard<std::mutex> lock(mtx);
-        last_error = "亮度百分比必须是 0-100。";
-        return Result::InvalidArgument;
-    }
-    if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
-        return Result::NotConnected;
-    }
-
-    int raw = PercentToRaw(percent);
-    bool restore_stable = false;
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        restore_stable = restore_stable_mode;
-    }
-    Result result = ExecuteSequence(
-        protocol::SetChannelRawSequence(channel, raw, restore_stable));
-    if (result != Result::Ok) {
-        HandleFailure(last_error);
-        return result;
-    }
-
-    {
-        std::lock_guard<std::mutex> lock(mtx);
-        channels[channel - 1] = {percent > 0, percent, raw};
-    }
-    NotifyChannel(channel);
-    LogMessage("灯 " + std::to_string(channel) + " 亮度已设置为 " +
-               std::to_string(percent) + "%。");
-    return Result::Ok;
+    return DoSetChannelValue(channel, percent, PercentToRaw(percent), false);
 }
 
 Result LampDevice::Impl::DoSetChannelRaw(int channel, int raw) {
+    return DoSetChannelValue(channel, RawToPercent(raw), raw, true);
+}
+
+Result LampDevice::Impl::DoSetChannelValue(int channel, int percent, int raw,
+                                           bool raw_mode) {
     if (!IsValidChannel(channel)) {
-        std::lock_guard<std::mutex> lock(mtx);
-        last_error = "通道号必须是 1-4。";
+        SetError("通道号必须是 1-4。");
         return Result::InvalidArgument;
     }
-    if (!IsValidRaw(raw)) {
-        std::lock_guard<std::mutex> lock(mtx);
-        last_error = "亮度原始值必须是 0-255。";
+    if ((raw_mode && !IsValidRaw(raw)) || (!raw_mode && !IsValidPercent(percent))) {
+        SetError(raw_mode ? "亮度原始值必须是 0-255。"
+                          : "亮度百分比必须是 0-100。");
         return Result::InvalidArgument;
     }
     if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
+        HandleFailure("串口未连接。");
         return Result::NotConnected;
     }
 
@@ -290,34 +248,34 @@ Result LampDevice::Impl::DoSetChannelRaw(int channel, int raw) {
     Result result = ExecuteSequence(
         protocol::SetChannelRawSequence(channel, raw, restore_stable));
     if (result != Result::Ok) {
-        HandleFailure(last_error);
+        ReportLastError();
         return result;
     }
 
     {
         std::lock_guard<std::mutex> lock(mtx);
-        channels[channel - 1] = {raw > 0, RawToPercent(raw), raw};
+        channels[channel - 1] = {raw > 0, percent, raw};
     }
     NotifyChannel(channel);
-    LogMessage("灯 " + std::to_string(channel) + " 亮度原始值已设置为 " +
-               std::to_string(raw) + "。");
+    if (raw_mode) {
+        LogMessage("灯 " + std::to_string(channel) + " 亮度原始值已设置为 " +
+                   std::to_string(raw) + "。");
+    } else {
+        LogMessage("灯 " + std::to_string(channel) + " 亮度已设置为 " +
+                   std::to_string(percent) + "%。");
+    }
     return Result::Ok;
 }
 
 Result LampDevice::Impl::DoSetChannels(const std::array<int, kChannelCount>& percents) {
     for (int index = 0; index < kChannelCount; index++) {
         if (!IsValidPercent(percents[index])) {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "亮度百分比必须是 0-100。";
+            SetError("亮度百分比必须是 0-100。");
             return Result::InvalidArgument;
         }
     }
     if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
+        HandleFailure("串口未连接。");
         return Result::NotConnected;
     }
 
@@ -333,7 +291,7 @@ Result LampDevice::Impl::DoSetChannels(const std::array<int, kChannelCount>& per
     Result result =
         ExecuteSequence(protocol::SetChannelsRawSequence(raws, restore_stable));
     if (result != Result::Ok) {
-        HandleFailure(last_error);
+        ReportLastError();
         return result;
     }
 
@@ -351,11 +309,7 @@ Result LampDevice::Impl::DoSetChannels(const std::array<int, kChannelCount>& per
 
 Result LampDevice::Impl::DoApply() {
     if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
+        HandleFailure("串口未连接。");
         return Result::NotConnected;
     }
 
@@ -388,7 +342,7 @@ Result LampDevice::Impl::DoApply() {
 
     Result result = ExecuteSequence(sequence);
     if (result != Result::Ok) {
-        HandleFailure(last_error);
+        ReportLastError();
         return result;
     }
     for (int channel = 1; channel <= kChannelCount; channel++) {
@@ -399,11 +353,7 @@ Result LampDevice::Impl::DoApply() {
 
 Result LampDevice::Impl::DoQueryStatus(DeviceStatus& status, bool fatal) {
     if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
+        HandleFailure("串口未连接。");
         return Result::NotConnected;
     }
 
@@ -413,13 +363,11 @@ Result LampDevice::Impl::DoQueryStatus(DeviceStatus& status, bool fatal) {
         std::string response;
         LogMessage("TX " + line);
         if (!transport->Exchange(line, command.read_ms, response)) {
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                last_error = transport->LastError();
-            }
-            LogMessage("TX " + line + " 失败：" + last_error);
+            std::string error = transport->LastError();
+            SetError(error);
+            LogMessage("TX " + line + " 失败：" + error);
             if (fatal) {
-                HandleFailure(last_error);
+                HandleFailure(error);
             }
             return Result::SerialError;
         }
@@ -457,22 +405,16 @@ Result LampDevice::Impl::DoQueryStatus(DeviceStatus& status, bool fatal) {
 Result LampDevice::Impl::DoSendRaw(const std::string& command, int read_ms,
                                    std::string& response) {
     if (!transport->IsOpen()) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = "串口未连接。";
-        }
-        HandleFailure(last_error);
+        HandleFailure("串口未连接。");
         return Result::NotConnected;
     }
 
     LogMessage("TX " + command);
     if (!transport->Exchange(command, read_ms, response)) {
-        {
-            std::lock_guard<std::mutex> lock(mtx);
-            last_error = transport->LastError();
-        }
-        LogMessage("TX " + command + " 失败：" + last_error);
-        HandleFailure(last_error);
+        std::string error = transport->LastError();
+        SetError(error);
+        LogMessage("TX " + command + " 失败：" + error);
+        HandleFailure(error);
         return Result::SerialError;
     }
     if (!response.empty()) {
@@ -487,11 +429,9 @@ Result LampDevice::Impl::ExecuteSequence(const std::vector<protocol::Command>& s
         std::string response;
         LogMessage("TX " + line);
         if (!transport->Exchange(line, command.read_ms, response)) {
-            {
-                std::lock_guard<std::mutex> lock(mtx);
-                last_error = transport->LastError();
-            }
-            LogMessage("TX " + line + " 失败：" + last_error);
+            std::string error = transport->LastError();
+            SetError(error);
+            LogMessage("TX " + line + " 失败：" + error);
             return Result::SerialError;
         }
         if (!response.empty()) {
@@ -499,6 +439,20 @@ Result LampDevice::Impl::ExecuteSequence(const std::vector<protocol::Command>& s
         }
     }
     return Result::Ok;
+}
+
+void LampDevice::Impl::SetError(const std::string& message) {
+    std::lock_guard<std::mutex> lock(mtx);
+    last_error = message;
+}
+
+void LampDevice::Impl::ReportLastError() {
+    std::string message;
+    {
+        std::lock_guard<std::mutex> lock(mtx);
+        message = last_error;
+    }
+    HandleFailure(message);
 }
 
 void LampDevice::Impl::HandleFailure(const std::string& message) {
@@ -588,6 +542,17 @@ void LampDevice::Impl::LogMessage(const std::string& message) {
     }
 }
 
+Result LampDevice::SyncCall(std::function<Result()> op) {
+    std::promise<Result> promise;
+    auto future = promise.get_future();
+    if (!impl_->Post([&promise, op = std::move(op)]() mutable {
+            promise.set_value(op());
+        })) {
+        return Result::Error;
+    }
+    return future.get();
+}
+
 LampDevice::LampDevice(std::unique_ptr<SerialTransport> transport,
                        std::unique_ptr<PortDiscovery> discovery, Logger& logger,
                        DeviceNotifier notifier)
@@ -646,92 +611,46 @@ void LampDevice::QueryStatusAsync() {
 }
 
 Result LampDevice::Connect(const std::string& port_name, int baud_rate) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, port_name, baud_rate, &promise] {
-            promise.set_value(impl_->DoConnect(port_name, baud_rate));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, port_name, baud_rate] {
+        return impl_->DoConnect(port_name, baud_rate);
+    });
 }
 
 Result LampDevice::Disconnect() {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, &promise] {
-            promise.set_value(impl_->DoDisconnect());
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this] { return impl_->DoDisconnect(); });
 }
 
 Result LampDevice::SetChannel(int channel, int percent) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, channel, percent, &promise] {
-            promise.set_value(impl_->DoSetChannel(channel, percent));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, channel, percent] {
+        return impl_->DoSetChannel(channel, percent);
+    });
 }
 
 Result LampDevice::SetChannelRaw(int channel, int raw) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, channel, raw, &promise] {
-            promise.set_value(impl_->DoSetChannelRaw(channel, raw));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, channel, raw] {
+        return impl_->DoSetChannelRaw(channel, raw);
+    });
 }
 
 Result LampDevice::SetChannels(const std::array<int, kChannelCount>& percents) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, percents, &promise] {
-            promise.set_value(impl_->DoSetChannels(percents));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, percents] { return impl_->DoSetChannels(percents); });
 }
 
 Result LampDevice::Apply() {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, &promise] {
-            promise.set_value(impl_->DoApply());
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this] { return impl_->DoApply(); });
 }
 
 Result LampDevice::QueryStatus(DeviceStatus& status) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, &status, &promise] {
-            promise.set_value(impl_->DoQueryStatus(status, true));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, &status] {
+        return impl_->DoQueryStatus(status, true);
+    });
 }
 
 Result LampDevice::SendRaw(const std::string& command, int read_ms,
                            std::string& response) {
-    std::promise<Result> promise;
-    auto future = promise.get_future();
-    if (!impl_->Post([this, command, read_ms, &response, &promise] {
-            promise.set_value(impl_->DoSendRaw(command, read_ms, response));
-        })) {
-        return Result::Error;
-    }
-    return future.get();
+    return SyncCall([this, command, read_ms, &response] {
+        return impl_->DoSendRaw(command, read_ms, response);
+    });
 }
 
 void LampDevice::SetMode(int value) {

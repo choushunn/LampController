@@ -80,6 +80,9 @@ public:
     int Pwm() const;
 
 private:
+    // 同步方法的公共样板：把 op 投递到设备工作线程并等待结果返回。
+    Result SyncCall(std::function<Result()> op);
+
     struct Impl;
     std::unique_ptr<Impl> impl_;
 };

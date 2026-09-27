@@ -10,7 +10,6 @@ constexpr int kMaxChannel = 4;
 constexpr int kChannelCount = 4;
 constexpr int kMaxRawValue = 255;
 constexpr int kDefaultBaudRate = 19200;
-constexpr size_t kPortNameSize = 32;
 constexpr size_t kErrorSize = 256;
 
 enum class Result {
